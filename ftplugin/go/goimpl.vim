@@ -1,7 +1,13 @@
 function! s:goimpl(...)
   let save_only = a:000[0]
-  if &readonly && !save_only
-    return call("s:goimpl", [!save_only]+a:000[1:])
+  if !save_only
+    if &readonly
+      return call("s:goimpl", [1]+a:000[1:])
+    end
+    let dir = expand('%:p:h')
+    if dir =~# '/pkg/mod/\|/vendor/'
+      return call("s:goimpl", [1]+a:000[1:])
+    end
   end
   noau update
   try
