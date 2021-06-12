@@ -1,16 +1,25 @@
 function! s:goimpl(...)
+  let save_only = a:000[0]
+  if &readonly && !save_only
+    return call("s:goimpl", [!save_only]+a:000[1:])
+  end
   noau update
-  let lines = call("s:get_impl", a:000[1:])
+  try
+    let lines = call("s:get_impl", a:000[1:])
+  catch
+    echom v:exception
+    return
+  endtry
   if empty(lines)
     echo "nothing to add"
     return
   end
-  if !a:000[0]
-    normal %
-    call append(line('.'), ['']+lines)
-  else
+  if save_only
     let @" = join(lines, "\n")
     echo "implementation copied!"
+  else
+    normal %
+    call append(line('.'), ['']+lines)
   end
 endfunction
 
@@ -57,15 +66,14 @@ function! s:get_package_iface(iface, dir)
   return iface
 endfunction
 
-function! s:get_impl(...)
+function! s:get_impl(...) abort
   let dir = expand('%:p:h')
   let new = v:false
   " no args
   if empty(a:000)
     let [iface, is_struct] = s:get_current_word()
     if is_struct
-      echom "please specify an interface to impl"
-      return
+      throw "please specify an interface to impl"
     end
     let iface = s:get_package_iface(iface, dir)
     let struct = split(iface, '\.')[-1] ."Impl"
@@ -86,15 +94,14 @@ function! s:get_impl(...)
     let new = v:true
   endif
   if empty(iface)
-    return
+    throw "no interface found"
   endif
   let impl = printf('%s *%s', tolower(struct[0]), struct)
   let cmd = printf('impl -dir %s %s %s', shellescape(dir), shellescape(impl), iface)
   let out = system(cmd)
   let lines = split(out, '\n')
   if v:shell_error != 0
-    echomsg join(lines, "\n")
-    return
+    throw join(lines, "\n")
   endif
   if new
     let lines = ['type ' . struct . ' struct {', '}', ''] + lines
